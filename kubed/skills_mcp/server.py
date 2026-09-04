@@ -209,7 +209,14 @@ def build_server(
             if (not pinned or s.in_pack(pinned)) and (not pack or s.in_pack(pack))
         ]
         if not selected:
-            known = ", ".join(sorted({s.pack for s in skills} | {s.group for s in skills})) or "none"
+            # Derive the suggestions from what this client may see. Listing
+            # every pack here would leak the other packs' names to a pinned
+            # client through an error message.
+            allowed = [s for s in skills if not pinned or s.in_pack(pinned)]
+            known = (
+                ", ".join(sorted({s.pack for s in allowed} | {s.group for s in allowed}))
+                or "none"
+            )
             return f"No skills for pack '{pack}'. Valid selectors: {known}."
         lines = [f"{s.name}: {s.description}" for s in sorted(selected, key=lambda s: s.name)]
         return "\n".join(lines) + "\n\nCall read_skill(skill=...) to read one."

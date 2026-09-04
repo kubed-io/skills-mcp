@@ -86,3 +86,13 @@ async def test_header_still_allows_its_own_pack(server_url):
         server_url, "read_skill", headers={"X-Skill-Pack": "flatsource"}, skill="alpha"
     )
     assert "First skill." in out
+
+
+@pytest.mark.integration
+async def test_error_message_does_not_leak_other_packs(server_url):
+    """A pinned client must not learn the other packs' names from an error."""
+    out = await call(
+        server_url, "list_skills", headers={"X-Skill-Pack": "flatsource"}, pack="nope"
+    )
+    assert "flatsource" in out
+    assert "deepsource" not in out and "plugin-a" not in out
