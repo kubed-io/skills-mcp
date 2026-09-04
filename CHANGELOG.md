@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- MCP server serving Agent Skills as `skill://` resources, bridged to `list_resources` / `read_resource` tools so tool-only clients such as n8n can read them.
+- MCP server serving Agent Skills, with a three-tool progressive-disclosure surface — `list_packs` / `list_skills` / `read_skill` — so a client sees three tools no matter how many skills are installed.
+- `pack` filtering by source (`n8n`, `grafana`) or group (`grafana-core`, `grafana-lgtm`), plus `SKILL_PACKS` to hard-scope an instance to a subset the model cannot widen.
+- Skills also published as `skill://` resources for clients that speak the resource half of MCP.
 - Skill sources declared as pinned dependencies in `skills.toml` and fetched at image build time, never vendored — currently 64 skills from n8n-io/skills and grafana/skills.
 - Root discovery that walks for `SKILL.md`, so a source may nest its skills at any depth even though `SkillsDirectoryProvider` does not recurse.
 - `GET /health` reporting status and discovered root count, wired to the Kubernetes readiness and liveness probes.

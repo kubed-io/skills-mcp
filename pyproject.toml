@@ -15,6 +15,7 @@ authors = [{ name = "Kelly", email = "admin@kellyferrone.com" }]
 maintainers = [{ name = "Kelly", email = "admin@kellyferrone.com" }]
 dependencies = [
   "fastmcp>=4.0.0,<5",
+  "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

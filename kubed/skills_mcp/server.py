@@ -1,47 +1,66 @@
 """Skills MCP server.
 
-Serves Agent Skills (``SKILL.md`` packages) over MCP. Skills arrive as git
-submodules under ``skills/`` so they are pinned, reviewable dependencies
-rather than files copied by hand.
+Serves Agent Skills (``SKILL.md`` packages) over MCP. Skill sources are pinned
+in ``skills.toml`` and fetched into the image at build time; nothing is fetched
+at runtime.
 
-Everything here is configuration around two FastMCP built-ins:
+Skills are exposed two ways:
 
-``SkillsDirectoryProvider``
-    Turns each skill folder into ``skill://<name>/SKILL.md``, a synthetic
-    ``skill://<name>/_manifest``, and templated supporting files.
+*Resources*, via FastMCP's ``SkillsDirectoryProvider`` -- ``skill://<name>/...``
+for clients that speak the resource half of MCP.
 
-``ResourcesAsTools``
-    Re-exposes those resources as ``list_resources`` / ``read_resource``
-    tools. Tool-only clients -- n8n's MCP Client Tool is one -- cannot speak
-    the resource half of MCP at all, so without this they see an empty server.
+*Tools*, hand-rolled here, because the generic ``ResourcesAsTools`` bridge is
+too expensive for a catalogue this size. It lists three entries per skill
+(``SKILL.md``, ``_manifest``, and a file template), each repeating the skill's
+full description -- 192 entries and ~16k tokens for 64 skills, paid on every
+call. The three tools below give the same access in a fraction of that: a pack
+index, a filtered skill index, then one skill body.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
 from fastmcp import FastMCP
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
-from fastmcp.server.transforms import ResourcesAsTools
 
 DEFAULT_SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/skills"))
 
 INSTRUCTIONS = """\
-This server hosts Agent Skills: self-contained instruction packages that teach \
-you how to perform a specific task.
+This server hosts Agent Skills: instruction packages that teach you how to \
+perform a specific task.
 
-Call `list_resources` first to see what is available -- it is cheap and returns \
-only names and one-line descriptions. When one matches the task at hand, call \
-`read_resource` with its `skill://<name>/SKILL.md` URI and follow the \
-instructions you get back.
+Work down the layers, cheapest first. `list_packs` shows which families of \
+skills exist. `list_skills` gives the index for one pack -- always pass `pack` \
+if you know which one you need, since the unfiltered index is much larger. \
+`read_skill` returns a skill's full instructions, which you then follow.
 
-Skills may reference supporting files. Read `skill://<name>/_manifest` to see \
-what a skill ships, then fetch individual files by URI as you need them. Do not \
-read files you have no use for -- the point of the layered URIs is that you pay \
-only for what you actually use.
+Skills may ship supporting files. `read_skill` with `file="_manifest"` lists \
+them; pass a path to read one. Do not read files you have no use for.
 """
+
+
+@dataclass(frozen=True)
+class Skill:
+    """One skill on disk."""
+
+    name: str
+    pack: str
+    group: str
+    description: str
+    path: Path
+
+    @property
+    def qualified(self) -> str:
+        return f"{self.pack}/{self.name}"
+
+    def in_pack(self, selector: str) -> bool:
+        """Match a selector against either the source or the group."""
+        return selector in (self.pack, self.group)
 
 
 def discover_roots(base: Path) -> list[Path]:
@@ -49,8 +68,8 @@ def discover_roots(base: Path) -> list[Path]:
 
     ``SkillsDirectoryProvider`` does not recurse: a root must be the parent of
     the skill folders, not an ancestor. Sources nest differently -- n8n is
-    ``skills/<skill>/SKILL.md`` while grafana is
-    ``skills/<plugin>/<skill>/SKILL.md`` -- so pointing at one shared parent
+    ``<pack>/<skill>/SKILL.md`` while grafana is
+    ``<pack>/<group>/<skill>/SKILL.md`` -- so pointing at one shared parent
     silently yields zero skills. Walking for ``SKILL.md`` and collecting each
     one's grandparent handles any depth without hard-coding either layout.
     """
@@ -59,20 +78,153 @@ def discover_roots(base: Path) -> list[Path]:
     return sorted({p.parent.parent for p in base.rglob("SKILL.md")})
 
 
-def build_server(skills_dir: Path = DEFAULT_SKILLS_DIR) -> FastMCP:
+def _frontmatter(skill_md: Path) -> dict:
+    """Parse a SKILL.md YAML frontmatter block, tolerating a malformed one."""
+    text = skill_md.read_text(encoding="utf-8", errors="replace")
+    if not text.startswith("---"):
+        return {}
+    _, _, rest = text.partition("---")
+    block, sep, _ = rest.partition("\n---")
+    if not sep:
+        return {}
+    try:
+        return yaml.safe_load(block) or {}
+    except yaml.YAMLError:
+        return {}
+
+
+def load_skills(base: Path, packs: list[str] | None = None) -> list[Skill]:
+    """Build the skill index.
+
+    ``pack`` is the top-level directory under ``base`` -- one skill source, one
+    pack. ``group`` is the directory that immediately contains the skill, which
+    for a nested source (grafana) is a meaningful sub-family and for a flat one
+    (n8n) is just the pack again. Both are selectable, so an agent can narrow to
+    a whole source or to one family within it.
+
+    ``packs`` hard-scopes the server to a subset, which is how a single image
+    serves a narrower catalogue without a separate build.
+    """
+    if not base.is_dir():
+        return []
+
+    skills: list[Skill] = []
+    for skill_md in sorted(base.rglob("SKILL.md")):
+        rel = skill_md.relative_to(base)
+        if len(rel.parts) < 2:
+            continue
+        pack = rel.parts[0]
+        if packs and pack not in packs:
+            continue
+        meta = _frontmatter(skill_md)
+        skills.append(
+            Skill(
+                name=str(meta.get("name") or skill_md.parent.name),
+                pack=pack,
+                group=rel.parts[-3],
+                description=" ".join(str(meta.get("description", "")).split()),
+                path=skill_md.parent,
+            )
+        )
+    return skills
+
+
+def build_server(
+    skills_dir: Path = DEFAULT_SKILLS_DIR, packs: list[str] | None = None
+) -> FastMCP:
     """Build the MCP server for the skills under ``skills_dir``."""
     mcp = FastMCP("Skills", instructions=INSTRUCTIONS)
 
+    skills = load_skills(skills_dir, packs)
+    by_name: dict[str, Skill] = {}
+    for skill in skills:
+        by_name.setdefault(skill.name, skill)
+        by_name[skill.qualified] = skill
+
     roots = discover_roots(skills_dir)
+    if packs:
+        roots = [r for r in roots if r.relative_to(skills_dir).parts[0] in packs]
     if roots:
         mcp.add_provider(SkillsDirectoryProvider(roots=roots))
-    mcp.add_transform(ResourcesAsTools(mcp))
+
+    pack_names = sorted({s.pack for s in skills})
+
+    @mcp.tool
+    def list_packs() -> str:
+        """List the skill packs available, with a skill count for each.
+
+        Start here. Each pack is one upstream source, so the pack name tells you
+        what domain its skills cover.
+        """
+        if not skills:
+            return "No skills are installed."
+        lines = []
+        for p in pack_names:
+            in_pack = [s for s in skills if s.pack == p]
+            lines.append(f"{p} ({len(in_pack)} skills)")
+            groups = sorted({s.group for s in in_pack} - {p})
+            lines += [
+                f"  {g} ({sum(1 for s in in_pack if s.group == g)})" for g in groups
+            ]
+        return (
+            "\n".join(lines)
+            + "\n\nCall list_skills(pack=...) with any name above -- a pack or one"
+            " of its groups. Narrower is cheaper."
+        )
+
+    @mcp.tool
+    def list_skills(pack: str = "") -> str:
+        """List skills as `name: description`, one per line.
+
+        Args:
+            pack: Restrict to one pack ("n8n", "grafana") or one of its groups
+                ("grafana-core", "grafana-lgtm") as shown by list_packs.
+                Strongly preferred -- the unfiltered index is large. Leave empty
+                only when you do not yet know which pack applies.
+        """
+        selected = [s for s in skills if not pack or s.in_pack(pack)]
+        if not selected:
+            known = ", ".join(sorted({s.pack for s in skills} | {s.group for s in skills})) or "none"
+            return f"No skills for pack '{pack}'. Valid selectors: {known}."
+        lines = [f"{s.name}: {s.description}" for s in sorted(selected, key=lambda s: s.name)]
+        return "\n".join(lines) + "\n\nCall read_skill(skill=...) to read one."
+
+    @mcp.tool
+    def read_skill(skill: str, file: str = "SKILL.md") -> str:
+        """Read a skill's instructions, its manifest, or one supporting file.
+
+        Args:
+            skill: Skill name from list_skills, e.g. "promql". Qualify it as
+                "<pack>/<name>" if the same name exists in two packs.
+            file: "SKILL.md" for the instructions (the default), "_manifest" for
+                the list of supporting files, or a path from that manifest.
+        """
+        found = by_name.get(skill)
+        if found is None:
+            return f"Unknown skill '{skill}'. Call list_skills to see valid names."
+
+        if file == "_manifest":
+            files = sorted(
+                str(p.relative_to(found.path))
+                for p in found.path.rglob("*")
+                if p.is_file()
+            )
+            return "\n".join(files)
+
+        # Resolve before comparing: blocks ../ traversal and symlinks that
+        # point outside the skill directory.
+        target = (found.path / file).resolve()
+        if not target.is_relative_to(found.path.resolve()) or not target.is_file():
+            return f"No file '{file}' in skill '{skill}'."
+        return target.read_text(encoding="utf-8", errors="replace")
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(_request):
         from starlette.responses import JSONResponse
 
-        return JSONResponse({"status": "ok", "roots": len(roots)})
+        return JSONResponse(
+            {"status": "ok", "packs": pack_names, "skills": len(skills)}
+        )
 
     return mcp
 
@@ -85,6 +237,11 @@ def main(argv: list[str] | None = None) -> None:
         type=Path,
         default=DEFAULT_SKILLS_DIR,
         help="directory to scan for skills (env: SKILLS_DIR)",
+    )
+    parser.add_argument(
+        "--packs",
+        default=os.environ.get("SKILL_PACKS", ""),
+        help="comma-separated packs to serve; empty serves all (env: SKILL_PACKS)",
     )
     parser.add_argument(
         "--transport",
@@ -105,7 +262,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    mcp = build_server(args.skills_dir)
+    packs = [p.strip() for p in args.packs.split(",") if p.strip()] or None
+    mcp = build_server(args.skills_dir, packs)
     if args.transport == "stdio":
         mcp.run(transport="stdio")
     else:
