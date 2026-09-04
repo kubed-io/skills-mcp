@@ -3,7 +3,8 @@
 
 Runs in the Docker build (and locally for development). Each source is fetched
 at its pinned commit and its ``path`` subdirectory is copied to
-``<out>/<name>/``, which is the layout the server scans.
+``<out>/<name>/``, which is the layout the server scans. Any ``extras``
+directories are copied alongside for ``read_pack_file`` to serve.
 
 Deliberately dependency-free: ``tomllib`` is stdlib on 3.11+, so this runs in a
 plain python image before the project itself is installed.
@@ -85,6 +86,24 @@ def fetch(source: dict, out: Path, workdir: Path) -> int:
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest, ignore=shutil.ignore_patterns(".git"))
+
+    # Kit-level directories that sit OUTSIDE the skill folders. The Agent Skills
+    # spec says a skill references files "relative to the skill root", but some
+    # kits (penpot) factor shared material up to the repo root and point at it
+    # from many skills. Copying those alongside keeps the pack whole; they are
+    # served by read_pack_file, never as skills.
+    for extra in source.get("extras", []):
+        extra_src = clone / extra
+        if not extra_src.is_dir():
+            raise SystemExit(f"{name}: extras entry '{extra}' not found in {repo}")
+        if any(extra_src.rglob("SKILL.md")):
+            raise SystemExit(
+                f"{name}: extras entry '{extra}' contains a SKILL.md; "
+                "it belongs under `path`, not `extras`"
+            )
+        shutil.copytree(
+            extra_src, dest / extra, ignore=shutil.ignore_patterns(".git")
+        )
 
     count = len(list(dest.rglob("SKILL.md")))
     print(f"  {name:10} {ref[:12]}  {count} skills")

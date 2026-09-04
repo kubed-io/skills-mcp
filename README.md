@@ -10,7 +10,7 @@ time. Nothing is fetched at runtime.
 docker run -p 8000:8000 kubed/skills-mcp:latest
 ```
 
-Point a client at `http://localhost:8000/mcp` and it gets **three tools — never one per
+Point a client at `http://localhost:8000/mcp` and it gets **four tools — never one per
 skill**. Skills are data behind `read_skill`, not entries in the tool list.
 
 | tool | returns | cost |
@@ -18,6 +18,7 @@ skill**. Skills are data behind `read_skill`, not entries in the tool list.
 | `list_packs()` | every pack and its groups, with counts | ~75 tokens |
 | `list_skills(pack)` | `name: description` for that pack or group | ~1–2k tokens |
 | `read_skill(skill, file)` | one skill's instructions, manifest, or a file | one skill |
+| `read_pack_file(pack, file)` | a file the pack ships outside any skill | one file |
 
 Each layer is cheap enough to call speculatively and narrow enough that the next one
 stays small:
@@ -28,6 +29,23 @@ list_skills(pack="grafana-lgtm")    →  6 skills, ~945 tokens
 read_skill(skill="loki")            →  the instructions to follow
 read_skill(skill="loki", file="_manifest")  →  what else it ships
 ```
+
+## Pack-level files
+
+The Agent Skills spec keeps a skill self-contained: references are "relative paths from
+the skill root". Some kits ignore that. Penpot's twelve skills point at `shared/*` from
+190 places, so served on their own they are a maze of dead links.
+
+A source can declare those directories in `skills.toml`, and they are served by
+`read_pack_file` — never as skills:
+
+```toml
+extras = ["shared", "workflows"]
+```
+
+Nothing about a skill changes. `read_skill` still serves each skill's own directory
+completely, and the two spaces do not overlap: a skill's files are unreachable through
+`read_pack_file`, and pack files are absent from any skill's `_manifest`.
 
 ## Filtering to one pack
 

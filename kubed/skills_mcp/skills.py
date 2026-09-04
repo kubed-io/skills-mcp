@@ -100,6 +100,65 @@ def load_skills(base: Path, packs: list[str] | None = None) -> list[Skill]:
     return skills
 
 
+class PackResources:
+    """Files a pack ships that live outside every skill directory.
+
+    The Agent Skills spec keeps a skill self-contained: references are "relative
+    paths from the skill root". Some kits ignore that and factor shared material
+    up to the repo root -- penpot's twelve skills point at ``shared/*`` from 190
+    places. Those files are not skills and must never be listed as one, but
+    without them the pack is a maze of dead links.
+
+    So they get their own addressable space, keyed by pack. Membership is
+    decided by exclusion (anything not inside a skill directory) rather than by
+    directory name, so it holds however a kit chooses to lay itself out.
+    """
+
+    def __init__(self, base: Path, skills: list[Skill]):
+        self._base = base
+        self._skill_dirs = {s.path.resolve() for s in skills}
+        # Derived from the skills actually loaded, so SKILL_PACKS scopes this
+        # too. Reading it off disk instead would let a scoped instance serve a
+        # pack whose skills it deliberately does not index.
+        self._packs = {s.pack for s in skills}
+
+    def _is_resource(self, path: Path) -> bool:
+        resolved = path.resolve()
+        return not any(
+            resolved == d or d in resolved.parents for d in self._skill_dirs
+        )
+
+    def files(self, pack: str) -> list[str]:
+        """Every pack-level file, as paths relative to the pack directory."""
+        if pack not in self._packs:
+            return []
+        root = self._base / pack
+        if not root.is_dir():
+            return []
+        return sorted(
+            str(p.relative_to(root))
+            for p in root.rglob("*")
+            if p.is_file() and self._is_resource(p)
+        )
+
+    def read(self, pack: str, rel: str) -> str | None:
+        """Read one pack-level file, or None when it is absent or off-limits.
+
+        Resolves before comparing so ``../`` and symlinks cannot walk out of the
+        pack, and refuses anything inside a skill directory -- those belong to
+        ``read_skill``, which applies its own scoping.
+        """
+        if pack not in self._packs:
+            return None
+        root = (self._base / pack).resolve()
+        target = (root / rel).resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            return None
+        if not self._is_resource(target):
+            return None
+        return target.read_text(encoding="utf-8", errors="replace")
+
+
 class SkillIndex:
     """A queryable catalogue that enforces the per-request scope.
 

@@ -142,6 +142,10 @@ namespaces tool names with a prefix, and these three names are the agent's API.
 
 - **Adding a tool** → `tools.py`. Never `server.py`.
 - **Adding an endpoint** → `routes.py`.
+- **A pack references files outside its skills** → add them to that source's `extras`
+  in `skills.toml`. They are served by `read_pack_file`, never indexed as skills. The
+  spec says a skill is self-contained, so most sources need none — grep the SKILL.md
+  files for `shared/`-style paths before reaching for it.
 - **Changing what counts as a skill, or who may see one** → `skills.py`.
   `SkillIndex` is the single place the request scope is enforced; a handler that
   reimplemented that filter is how a pinned client ends up seeing another pack.

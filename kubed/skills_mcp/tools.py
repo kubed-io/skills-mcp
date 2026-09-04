@@ -1,6 +1,6 @@
 """The MCP tools.
 
-Three tools, whatever the catalogue size -- one per disclosure layer. Skills are
+Four tools, whatever the catalogue size -- one per disclosure layer. Skills are
 data behind ``read_skill``, never tools in their own right, so adding a pack
 never grows the tool list.
 
@@ -15,7 +15,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
-from .skills import SkillIndex
+from .skills import PackResources, SkillIndex
 
 # Per-request scope. A client that sets this sees only that pack, whatever it
 # asks for -- which is how one deployment serves several single-pack agents.
@@ -35,7 +35,7 @@ def requested_pack() -> str:
     return get_http_headers().get(PACK_HEADER, "").strip()
 
 
-def register(mcp: FastMCP, index: SkillIndex) -> None:
+def register(mcp: FastMCP, index: SkillIndex, resources: PackResources) -> None:
     """Register the skill tools on ``mcp``."""
 
     @mcp.tool
@@ -113,3 +113,42 @@ def register(mcp: FastMCP, index: SkillIndex) -> None:
         if not target.is_relative_to(found.path.resolve()) or not target.is_file():
             return f"No file '{file}' in skill '{skill}'."
         return target.read_text(encoding="utf-8", errors="replace")
+
+    @mcp.tool
+    def read_pack_file(pack: str, file: str = "_manifest") -> str:
+        """Read a pack-level file that sits outside any single skill.
+
+        Some packs keep shared material at the pack root and reference it from
+        many skills — penpot points at `shared/...` from every one of its
+        twelve. Those paths are NOT readable with read_skill, which is scoped to
+        one skill's own directory; use this instead.
+
+        Args:
+            pack: Pack name from list_packs, e.g. "penpot".
+            file: "_manifest" for the list of pack-level files (the default), or
+                a path from that manifest, e.g. "shared/naming-conventions.md".
+        """
+        # Check visibility before existence, so an out-of-scope pack is
+        # indistinguishable from a missing one rather than being confirmed by a
+        # different error message.
+        visible = {s.pack for s in index.visible(requested_pack())}
+        if pack not in visible:
+            return f"Unknown pack '{pack}'. Call list_packs to see valid names."
+
+        if file == "_manifest":
+            files = resources.files(pack)
+            if not files:
+                return (
+                    f"Pack '{pack}' ships no pack-level files. Everything it has"
+                    " lives inside its skills — use read_skill."
+                )
+            return "\n".join(files)
+
+        content = resources.read(pack, file)
+        if content is None:
+            return (
+                f"No pack-level file '{file}' in '{pack}'. Call"
+                f" read_pack_file(pack='{pack}') for the list. Files inside a"
+                " skill are read with read_skill, not this tool."
+            )
+        return content

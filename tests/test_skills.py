@@ -68,3 +68,46 @@ def test_qualified_name_resolves(index):
 def test_empty_index_is_safe(index):
     empty = SkillIndex([])
     assert len(empty) == 0 and empty.packs == [] and empty.get("anything") is None
+
+
+@pytest.fixture
+def resources(skills_dir):
+    from kubed.skills_mcp.skills import PackResources
+
+    return PackResources(skills_dir, load_skills(skills_dir))
+
+
+@pytest.mark.unit
+def test_pack_files_exclude_everything_inside_skills(resources):
+    """A skill's own files belong to read_skill, not the pack tool."""
+    files = resources.files("deepsource")
+    assert set(files) == {"README.md", "shared/guide.md", "shared/nested/schema.json"}
+    assert not any("SKILL.md" in f for f in files)
+
+
+@pytest.mark.unit
+def test_pack_with_no_extras_is_empty(resources):
+    assert resources.files("flatsource") == []
+
+
+@pytest.mark.unit
+def test_unknown_pack_is_empty(resources):
+    assert resources.files("nope") == []
+
+
+@pytest.mark.unit
+def test_read_pack_file(resources):
+    assert resources.read("deepsource", "shared/guide.md") == "shared guidance\n"
+    assert resources.read("deepsource", "shared/nested/schema.json") == "{}\n"
+
+
+@pytest.mark.unit
+def test_read_refuses_skill_files(resources):
+    """Reaching into a skill through the pack tool would bypass skill scoping."""
+    assert resources.read("deepsource", "plugin-a/gamma/SKILL.md") is None
+
+
+@pytest.mark.unit
+def test_read_refuses_traversal(resources):
+    assert resources.read("deepsource", "../flatsource/alpha/SKILL.md") is None
+    assert resources.read("deepsource", "../../etc/passwd") is None

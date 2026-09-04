@@ -45,11 +45,11 @@ def test_load_skills_can_hard_scope_to_packs(skills_dir):
 
 
 @pytest.mark.unit
-async def test_tool_surface_is_three_compact_tools(skills_dir):
-    """One tool per disclosure layer -- never one per skill."""
+async def test_tool_surface_stays_fixed(skills_dir):
+    """Three disclosure layers plus pack-level files -- never one tool per skill."""
     async with Client(SkillsMCP(skills_dir).mcp) as client:
         names = sorted(t.name for t in await client.list_tools())
-    assert names == ["list_packs", "list_skills", "read_skill"]
+    assert names == ["list_packs", "list_skills", "read_pack_file", "read_skill"]
 
 
 @pytest.mark.unit
@@ -127,3 +127,30 @@ async def test_empty_skills_dir_still_serves(tmp_path):
     """No skills mounted must not crash the server -- it just serves nothing."""
     async with Client(SkillsMCP(tmp_path).mcp) as client:
         assert "No skills" in await call(client, "list_packs")
+
+
+@pytest.mark.unit
+async def test_read_pack_file_serves_pack_level_material(skills_dir):
+    """Kit-level files a skill references must be reachable somehow."""
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
+        manifest = await call(client, "read_pack_file", pack="deepsource")
+        body = await call(
+            client, "read_pack_file", pack="deepsource", file="shared/guide.md"
+        )
+    assert "shared/guide.md" in manifest
+    assert body == "shared guidance\n"
+
+
+@pytest.mark.unit
+async def test_read_pack_file_explains_when_a_pack_has_none(skills_dir):
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
+        out = await call(client, "read_pack_file", pack="flatsource")
+    assert "no pack-level files" in out
+
+
+@pytest.mark.unit
+async def test_read_pack_file_honours_the_request_scope(skills_dir):
+    """A scoped instance must not read an unindexed pack's shared material."""
+    async with Client(SkillsMCP(skills_dir, packs=["flatsource"]).mcp) as client:
+        out = await call(client, "read_pack_file", pack="deepsource")
+    assert out.startswith("Unknown pack")

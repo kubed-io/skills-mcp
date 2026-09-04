@@ -14,7 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
 
 from . import routes, tools
-from .skills import SkillIndex, discover_roots, load_skills
+from .skills import PackResources, SkillIndex, discover_roots, load_skills
 
 DEFAULT_SKILLS_DIR = Path("/skills")
 
@@ -49,11 +49,13 @@ class SkillsMCP:
     ):
         self.skills_dir = skills_dir
         self.packs = packs
-        self.index = SkillIndex(load_skills(skills_dir, packs))
+        skills = load_skills(skills_dir, packs)
+        self.index = SkillIndex(skills)
+        self.resources = PackResources(skills_dir, skills)
         self.mcp = FastMCP("Skills", instructions=INSTRUCTIONS)
 
         self._add_resource_provider()
-        tools.register(self.mcp, self.index)
+        tools.register(self.mcp, self.index, self.resources)
         routes.register(self.mcp, self.index)
 
     def _add_resource_provider(self) -> None:

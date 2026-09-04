@@ -13,7 +13,13 @@ def _build_tree(root):
     for plugin, skills in NESTED.items():
         for name, desc in skills.items():
             _write(root / "deepsource" / plugin / name, name, desc)
+    # Pack-level files: outside every skill directory, so not skills themselves.
     (root / "deepsource" / "README.md").write_text("not a skill\n")
+    shared = root / "deepsource" / "shared"
+    shared.mkdir(parents=True, exist_ok=True)
+    (shared / "guide.md").write_text("shared guidance\n")
+    (shared / "nested").mkdir(exist_ok=True)
+    (shared / "nested" / "schema.json").write_text("{}\n")
     return root
 
 
