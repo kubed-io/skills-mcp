@@ -26,7 +26,12 @@ from pathlib import Path
 
 import yaml
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
+
+# Per-request scope. A client that sets this sees only that pack, whatever it
+# asks for -- which is how one deployment serves several single-pack agents.
+PACK_HEADER = "x-skill-pack"
 
 DEFAULT_SKILLS_DIR = Path(os.environ.get("SKILLS_DIR", "/skills"))
 
@@ -129,6 +134,19 @@ def load_skills(base: Path, packs: list[str] | None = None) -> list[Skill]:
     return skills
 
 
+def _requested_pack() -> str:
+    """The pack this request is pinned to, or "" when it is unpinned.
+
+    Read from the ``X-Skill-Pack`` header, which a client sets once in its
+    connection config. It is a ceiling, not a suggestion: the model can narrow
+    further with the ``pack`` argument but can never widen past it. That is the
+    difference between a scope an agent has and one it merely was asked to keep.
+
+    Returns "" outside an HTTP request (stdio), where there is no header to read.
+    """
+    return get_http_headers().get(PACK_HEADER, "").strip()
+
+
 def build_server(
     skills_dir: Path = DEFAULT_SKILLS_DIR, packs: list[str] | None = None
 ) -> FastMCP:
@@ -156,11 +174,13 @@ def build_server(
         Start here. Each pack is one upstream source, so the pack name tells you
         what domain its skills cover.
         """
-        if not skills:
+        pinned = _requested_pack()
+        visible = [s for s in skills if not pinned or s.in_pack(pinned)]
+        if not visible:
             return "No skills are installed."
         lines = []
-        for p in pack_names:
-            in_pack = [s for s in skills if s.pack == p]
+        for p in sorted({s.pack for s in visible}):
+            in_pack = [s for s in visible if s.pack == p]
             lines.append(f"{p} ({len(in_pack)} skills)")
             groups = sorted({s.group for s in in_pack} - {p})
             lines += [
@@ -182,7 +202,12 @@ def build_server(
                 Strongly preferred -- the unfiltered index is large. Leave empty
                 only when you do not yet know which pack applies.
         """
-        selected = [s for s in skills if not pack or s.in_pack(pack)]
+        pinned = _requested_pack()
+        selected = [
+            s
+            for s in skills
+            if (not pinned or s.in_pack(pinned)) and (not pack or s.in_pack(pack))
+        ]
         if not selected:
             known = ", ".join(sorted({s.pack for s in skills} | {s.group for s in skills})) or "none"
             return f"No skills for pack '{pack}'. Valid selectors: {known}."
@@ -199,7 +224,10 @@ def build_server(
             file: "SKILL.md" for the instructions (the default), "_manifest" for
                 the list of supporting files, or a path from that manifest.
         """
+        pinned = _requested_pack()
         found = by_name.get(skill)
+        if found is not None and pinned and not found.in_pack(pinned):
+            found = None
         if found is None:
             return f"Unknown skill '{skill}'. Call list_skills to see valid names."
 

@@ -141,9 +141,19 @@ Progressive disclosure, cheapest layer first. Adding packs must not add tools.
 `references/FOO.md`; citing it does not fetch it. That laziness is the point —
 keep it when changing this code.
 
-`SKILL_PACKS=n8n` hard-scopes an instance to a subset the model cannot widen.
-Same image, second Deployment, different env — the way to give one agent a
-catalogue it cannot escape.
+Two ways to hard-scope, both ceilings the model cannot widen past:
+
+- **`X-Skill-Pack` header**, per client. One deployment serves many single-pack
+  agents; in n8n it is a Header Auth credential on the MCP Client Tool node.
+  Prefer this — a second Deployment is not free here, because the kustomization
+  sets `includeSelectors: true`, so a second instance would inherit the same
+  selector and the existing Service would load-balance across both. Fixing that
+  means changing `spec.selector`, which is immutable and forces a recreate.
+- **`SKILL_PACKS` env**, per deployment. Narrower blast radius but a whole pod.
+
+They compose: the header narrows within whatever `SKILL_PACKS` allows. Header
+scoping only exists inside an HTTP request, so it is inert over stdio — the
+tests in `tests/test_header_scope.py` run a real uvicorn server for that reason.
 
 ## Verifying in the cluster
 

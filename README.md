@@ -34,14 +34,28 @@ read_skill(skill="loki", file="_manifest")  →  what else it ships
 `pack` accepts either a source (`n8n`, `grafana`, `penpot`) or one of its groups
 (`grafana-core`, `grafana-lgtm`). That is the soft filter, chosen per call.
 
-For a **hard** scope — an n8n agent that can never see Grafana skills — set
-`SKILL_PACKS` and the rest of the catalogue does not exist for that instance:
+For a **hard** scope there are two levers, and both are ceilings the model
+cannot widen past.
+
+**Per client — the `X-Skill-Pack` header.** Set it once in the client's
+connection config and that client sees one pack, whatever it asks for. This is
+how one deployment serves several single-pack agents:
+
+```
+X-Skill-Pack: penpot
+```
+
+In n8n that is a Header Auth credential on the MCP Client Tool node — a plumbed
+constant on the node, not something the model fills in.
+
+**Per deployment — `SKILL_PACKS`.** Scopes the whole instance; the rest of the
+catalogue is not loaded at all:
 
 ```
 SKILL_PACKS=n8n
 ```
 
-Same image, second Deployment, different env. Nothing the model does can widen it.
+They compose: the header narrows within whatever `SKILL_PACKS` already allows.
 
 ## Why three tools and not resources
 
