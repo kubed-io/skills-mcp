@@ -149,7 +149,7 @@ jobs:
     steps:
 
     - name: Create Release
-      uses: softprops/action-gh-release@v3.0.2
+      uses: softprops/action-gh-release@v3.0.3
       with:
         name: ${{ needs.version.outputs.tag }}
         tag_name: ${{ needs.version.outputs.tag }}
