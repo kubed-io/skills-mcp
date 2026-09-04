@@ -30,3 +30,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /health` reporting status and discovered root count, wired to the Kubernetes readiness and liveness probes.
 - Weekly **Update Skills** workflow that repins every source to upstream HEAD and opens a PR.
 - Kubernetes manifests deploying to the `flow` namespace as `skills-mcp:8000`, unauthenticated and read-only.
+- Node affinity keeping the pod off the control-plane nodes, which carry no taint in this cluster and would otherwise be scheduled onto.

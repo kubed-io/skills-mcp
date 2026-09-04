@@ -8,6 +8,17 @@ spec:
     matchLabels: {}
   template:
     spec:
+      # The control-plane nodes carry no taint in this cluster, so without this
+      # the scheduler will happily place this pod on an etcd/master node — it
+      # landed on berry on the first rollout. required, not preferred: there is
+      # no reason for a stateless skills server to ever sit on a master.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: DoesNotExist
       containers:
       - name: skills-mcp
         image: kubed/skills-mcp
