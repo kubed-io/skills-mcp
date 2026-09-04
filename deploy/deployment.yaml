@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skills-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {}
+  template:
+    spec:
+      containers:
+      - name: skills-mcp
+        image: kubed/skills-mcp
+        imagePullPolicy: IfNotPresent
+        # No auth by design: every skill served here is public markdown already
+        # on GitHub, and the server has no write path and no credentials.
+        ports:
+        - name: http
+          containerPort: 8000
+        # The skills are baked into the image, so this is a read-only,
+        # stateless process — nothing to write anywhere.
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http

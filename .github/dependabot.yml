@@ -1,0 +1,80 @@
+# Dependabot version updates (security updates are toggled in repo settings,
+# not in this file). One entry per package manager active in the repo.
+#
+# House rules:
+# - Weekly cadence: enough to stay current without spamming the queue.
+# - Grouped minor + patch per ecosystem; majors stay separate for review.
+# - Short cooldown so yanked releases get pulled before they reach us.
+# - Commit prefix is distinct per ecosystem so the merge queue reads cleanly.
+# - `no changelog` skips the pr.yml changelog gate.
+#
+# Docs: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+
+# GitHub Actions: keeps every `uses:` pin across workflows current.
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - github-actions
+  - no changelog
+  commit-message:
+    prefix: ci(deps)
+  cooldown:
+    default-days: 3
+  groups:
+    actions-minor-patch:
+      update-types:
+      - minor
+      - patch
+
+# Python: fastmcp is the only runtime dependency, and the whole server is a
+# thin wrapper over its skills provider — a major bump is a real review.
+- package-ecosystem: pip
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - python
+  commit-message:
+    prefix: deps(pip)
+  cooldown:
+    default-days: 3
+  groups:
+    pip-minor-patch:
+      update-types:
+      - minor
+      - patch
+
+# Docker: tracks the python base image in the Dockerfile.
+- package-ecosystem: docker
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - docker
+  - no changelog
+  commit-message:
+    prefix: deps(docker)
+  cooldown:
+    default-days: 3
+  groups:
+    docker-minor-patch:
+      update-types:
+      - minor
+      - patch
+
+# NOTE: the skill sources in skills.toml are NOT tracked here. Dependabot has no
+# ecosystem for a hand-rolled manifest, so bumping those pins is the "Update
+# Skills" workflow's job (.github/workflows/update-skills.yml).

@@ -1,0 +1,49 @@
+name: 🧪 Test
+
+# Unit tests only — they use a synthetic skills tree from conftest.py and never
+# touch the submodules, so this stays fast and independent of upstream skill repos.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+    - kubed/**
+    - tests/**
+    - pyproject.toml
+    - .github/workflows/test.yml
+  push:
+    branches: [main]
+    paths:
+    - kubed/**
+    - tests/**
+    - pyproject.toml
+    - .github/workflows/test.yml
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        # setuptools_scm needs history to resolve a version at install time.
+        fetch-depth: 0
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: Install
+      run: pip install .[test]
+
+    - name: Lint
+      run: ruff check kubed
+
+    - name: Test
+      run: pytest

@@ -1,0 +1,26 @@
+# Skill sources — dependencies, pinned like any other.
+#
+# These are fetched at BUILD time by scripts/fetch_skills.py, never vendored
+# into this repo. `skills/` is gitignored: the manifest is the source of truth,
+# so a skill set is reviewed as a one-line ref change rather than a diff of
+# somebody else's markdown.
+#
+# ref: neither upstream tags releases, so these are commit SHAs. Pin by SHA and
+#      the image is reproducible; track a branch and it silently is not.
+# path: the subdirectory within the source repo that CONTAINS the skill folders.
+#       Never the repo root — grafana/skills ships a template/SKILL.md up there
+#       that would otherwise be served as a skill named "template".
+#
+# Bump these with the "Update Skills" workflow, or by hand.
+
+[[source]]
+name = "n8n"
+repo = "https://github.com/n8n-io/skills.git"
+ref = "180b8415e3b73f78828cfa01e908e67f89f2a139"
+path = "skills"
+
+[[source]]
+name = "grafana"
+repo = "https://github.com/grafana/skills.git"
+ref = "51d33e71e191b409bbd25fc7be2684c610d18166"
+path = "skills"
