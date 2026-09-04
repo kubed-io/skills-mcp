@@ -11,7 +11,10 @@ spec:
       containers:
       - name: skills-mcp
         image: kubed/skills-mcp
-        imagePullPolicy: IfNotPresent
+        # Always, because kustomization.yaml currently floats on :latest — with
+        # IfNotPresent a node keeps serving whatever layer it cached first.
+        # Once publish.yml pins a semver this is just a cheap registry check.
+        imagePullPolicy: Always
         # No auth by design: every skill served here is public markdown already
         # on GitHub, and the server has no write path and no credentials.
         # SKILL_PACKS hard-scopes an instance to a subset of packs — deploy a
@@ -26,6 +29,7 @@ spec:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           runAsNonRoot: true
+          runAsUser: 65534
           capabilities:
             drop:
             - ALL

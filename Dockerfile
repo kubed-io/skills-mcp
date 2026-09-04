@@ -48,6 +48,8 @@ ENV SKILLS_DIR=/skills \
     PORT=8000
 
 EXPOSE 8000
-USER nobody
+# Numeric UID, not the name: with runAsNonRoot set, the kubelet cannot verify a
+# non-numeric USER and refuses to start the container.
+USER 65534
 
 ENTRYPOINT ["skills-mcp"]
