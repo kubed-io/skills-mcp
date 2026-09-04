@@ -11,7 +11,11 @@ into the image; nothing is fetched at runtime.
 | --- | --- |
 | `skills.toml` | the pack manifest — the source of truth for what gets served |
 | `scripts/fetch_skills.py` | clones each pinned source at build time; stdlib only |
-| `kubed/skills_mcp/server.py` | the whole server: index, three tools, `/health` |
+| `kubed/skills_mcp/skills.py` | the catalogue — `Skill`, loading, and `SkillIndex` |
+| `kubed/skills_mcp/tools.py` | the three MCP tools, and the request-scope header |
+| `kubed/skills_mcp/routes.py` | plain HTTP endpoints (`/health`) |
+| `kubed/skills_mcp/server.py` | `SkillsMCP` — wiring only, no tool bodies |
+| `kubed/skills_mcp/main.py` | CLI and env parsing; the only file reading `os.environ` |
 | `deploy/` | raw Deployment + Service |
 | `kustomization.yaml` | the one kustomization; `newTag` is the deployed version |
 | `skills/` | **gitignored** — build output, never commit it |
@@ -126,6 +130,27 @@ deploy` will not work, and is not meant to.
   the full description — 192 entries and ~16k tokens per listing call for 64
   skills, paid every time. The three hand-rolled tools exist for that reason.
   Skills stay data behind `read_skill`; they are never tools themselves.
+
+## Where code goes
+
+The split follows the layout proposed in `modelcontextprotocol/python-sdk#1681`:
+**MCP wiring separate from tool implementations**, with pure logic factored out
+of the handlers. FastMCP has no `APIRouter` equivalent (`PrefectHQ/fastmcp#948`
+closed unanswered), so each module exposes a `register(mcp, index)` that the
+server calls. Mounting sub-servers is the other option and is wrong here: it
+namespaces tool names with a prefix, and these three names are the agent's API.
+
+- **Adding a tool** → `tools.py`. Never `server.py`.
+- **Adding an endpoint** → `routes.py`.
+- **Changing what counts as a skill, or who may see one** → `skills.py`.
+  `SkillIndex` is the single place the request scope is enforced; a handler that
+  reimplemented that filter is how a pinned client ends up seeing another pack.
+- **A new flag or env var** → `main.py`, which is the whole configuration
+  surface. Nothing else in the package reads `os.environ`.
+
+`skills.py` imports no FastMCP, which is deliberate: the catalogue is testable
+without an MCP client, and `tests/test_skills.py` exercises the scoping rules
+directly rather than only through the tools.
 
 ## The tool surface, and why it is three tools
 

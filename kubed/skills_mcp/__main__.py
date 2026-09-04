@@ -1,5 +1,5 @@
 """Allow ``python -m kubed.skills_mcp``."""
 
-from .server import main
+from .main import main
 
 main()

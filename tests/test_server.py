@@ -3,7 +3,7 @@
 import pytest
 from fastmcp import Client
 
-from kubed.skills_mcp.server import build_server, discover_roots, load_skills
+from kubed.skills_mcp import SkillsMCP, discover_roots, load_skills
 
 
 async def call(client, name, **args):
@@ -47,14 +47,14 @@ def test_load_skills_can_hard_scope_to_packs(skills_dir):
 @pytest.mark.unit
 async def test_tool_surface_is_three_compact_tools(skills_dir):
     """One tool per disclosure layer -- never one per skill."""
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         names = sorted(t.name for t in await client.list_tools())
     assert names == ["list_packs", "list_skills", "read_skill"]
 
 
 @pytest.mark.unit
 async def test_list_packs_shows_sources_and_nested_groups(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         out = await call(client, "list_packs")
     assert "flatsource (2 skills)" in out
     assert "deepsource (2 skills)" in out
@@ -65,7 +65,7 @@ async def test_list_packs_shows_sources_and_nested_groups(skills_dir):
 
 @pytest.mark.unit
 async def test_list_skills_filters_by_pack_or_group(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         everything = await call(client, "list_skills")
         by_pack = await call(client, "list_skills", pack="flatsource")
         by_group = await call(client, "list_skills", pack="plugin-a")
@@ -79,20 +79,20 @@ async def test_list_skills_filters_by_pack_or_group(skills_dir):
 
 @pytest.mark.unit
 async def test_unknown_pack_names_the_valid_selectors(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         out = await call(client, "list_skills", pack="nope")
     assert "plugin-a" in out and "flatsource" in out
 
 
 @pytest.mark.unit
 async def test_read_skill_returns_the_body(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         assert "Third skill." in await call(client, "read_skill", skill="gamma")
 
 
 @pytest.mark.unit
 async def test_read_skill_manifest_lists_files(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         out = await call(client, "read_skill", skill="alpha", file="_manifest")
     assert "SKILL.md" in out
 
@@ -100,7 +100,7 @@ async def test_read_skill_manifest_lists_files(skills_dir):
 @pytest.mark.unit
 async def test_read_skill_rejects_traversal(skills_dir):
     """A model-supplied path must never escape the skill directory."""
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         out = await call(
             client, "read_skill", skill="alpha", file="../../deepsource/README.md"
         )
@@ -109,7 +109,7 @@ async def test_read_skill_rejects_traversal(skills_dir):
 
 @pytest.mark.unit
 async def test_read_skill_rejects_unknown_name(skills_dir):
-    async with Client(build_server(skills_dir)) as client:
+    async with Client(SkillsMCP(skills_dir).mcp) as client:
         out = await call(client, "read_skill", skill="nope")
     assert out.startswith("Unknown skill")
 
@@ -117,7 +117,7 @@ async def test_read_skill_rejects_unknown_name(skills_dir):
 @pytest.mark.unit
 async def test_server_scoped_to_packs_hides_the_rest(skills_dir):
     """SKILL_PACKS is the hard scope: the other pack is not reachable at all."""
-    async with Client(build_server(skills_dir, packs=["flatsource"])) as client:
+    async with Client(SkillsMCP(skills_dir, packs=["flatsource"]).mcp) as client:
         assert "deepsource" not in await call(client, "list_packs")
         assert (await call(client, "read_skill", skill="gamma")).startswith("Unknown")
 
@@ -125,5 +125,5 @@ async def test_server_scoped_to_packs_hides_the_rest(skills_dir):
 @pytest.mark.unit
 async def test_empty_skills_dir_still_serves(tmp_path):
     """No skills mounted must not crash the server -- it just serves nothing."""
-    async with Client(build_server(tmp_path)) as client:
+    async with Client(SkillsMCP(tmp_path).mcp) as client:
         assert "No skills" in await call(client, "list_packs")

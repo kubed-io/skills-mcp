@@ -42,7 +42,7 @@ Issues = "https://github.com/kubed-io/skills-mcp/issues"
 Changelog = "https://github.com/kubed-io/skills-mcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
-skills-mcp = "kubed.skills_mcp.server:main"
+skills-mcp = "kubed.skills_mcp.main:main"
 
 [tool.setuptools_scm]
 

@@ -1,5 +1,6 @@
 """Serve Agent Skills over MCP."""
 
-from .server import Skill, build_server, discover_roots, load_skills
+from .server import SkillsMCP
+from .skills import Skill, SkillIndex, discover_roots, load_skills
 
-__all__ = ["Skill", "build_server", "discover_roots", "load_skills"]
+__all__ = ["Skill", "SkillIndex", "SkillsMCP", "discover_roots", "load_skills"]
