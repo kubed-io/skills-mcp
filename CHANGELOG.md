@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `penpot` skill pack from `penpot/penpot-ai-kit` (12 skills, 108 supporting files) — pairs with the Penpot agent.
-- `AGENTS.md` covering how to add a skill pack and how to ship with the publish/deploy workflows.
+- `AGENTS.md` covering how to add a skill pack, the `kubectl build`/`up` kustomize flow, and how to ship with the publish/deploy workflows.
 
 - MCP server serving Agent Skills, with a three-tool progressive-disclosure surface — `list_packs` / `list_skills` / `read_skill` — so a client sees three tools no matter how many skills are installed.
 - `pack` filtering by source (`n8n`, `grafana`) or group (`grafana-core`, `grafana-lgtm`), plus `SKILL_PACKS` to hard-scope an instance to a subset the model cannot widen.

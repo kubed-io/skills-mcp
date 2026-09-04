@@ -74,16 +74,39 @@ The pin happens *before* the tag, so the tag's tree already references its own
 image. This is the only workflow that writes `newTag`, and it only ever writes a
 semver — so main always sits on something deployable.
 
-**2. `🚀 Deploy`** (`workflow_dispatch`) — runs `kubectl up` (applyset + prune).
-Preview locally first:
-
-```bash
-kubectl plan .    # diff against the live cluster, read-only
-kubectl up .      # what the workflow runs
-```
+**2. `🚀 Deploy`** (`workflow_dispatch`) — runs `kubectl up` against this repo.
 
 `image.yml` on its own only builds. A push to main publishes `:main` and
 `:latest` for testing; it never changes what is deployed.
+
+## Kustomize: build and up
+
+These are this project's custom kubectl commands, not upstream kubectl. They all
+take a directory — the one holding `kustomization.yaml`, which here is the repo
+root. Run them from anywhere; pass the dir explicitly.
+
+```bash
+kubectl build <dir>   # render the manifests to stdout — no cluster contact
+kubectl diff -k <dir> # read-only diff of the render against the live cluster
+kubectl up <dir>      # apply, with applyset pruning
+kubectl down <dir>    # tear the app back down
+```
+
+From the repo root that is `kubectl build .` and `kubectl up .`.
+
+Use them in that order. `build` answers "did kustomize produce what I meant?"
+and is the right check after touching `deploy/` or `kustomization.yaml`; it
+never contacts the cluster. `kubectl diff -k` is the read-only preview and is
+safe to run anytime. `up` is what `deploy.yml` runs, so a clean local diff is a
+faithful preview of what the workflow will do.
+
+`kubectl plan` is documented in the cluster repo's CLAUDE.md but is **not
+installed in the codeserver pod** — `kubectl plugin list` shows `build`, `up`,
+`down`, and friends, with no `plan`. Use `kubectl diff -k` there instead.
+
+There is one kustomization, at the top level. `deploy/` holds the raw
+Deployment and Service and has no kustomization of its own — `kubectl build
+deploy` will not work, and is not meant to.
 
 ## Things that already cost someone an afternoon
 
