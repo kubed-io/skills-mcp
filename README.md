@@ -15,7 +15,7 @@ skill**. Skills are data behind `read_skill`, not entries in the tool list.
 
 | tool | returns | cost |
 | --- | --- | --- |
-| `list_packs()` | every pack and its groups, with counts | ~70 tokens |
+| `list_packs()` | every pack and its groups, with counts | ~75 tokens |
 | `list_skills(pack)` | `name: description` for that pack or group | ~1–2k tokens |
 | `read_skill(skill, file)` | one skill's instructions, manifest, or a file | one skill |
 
@@ -23,7 +23,7 @@ Each layer is cheap enough to call speculatively and narrow enough that the next
 stays small:
 
 ```
-list_packs()                        →  grafana (50), n8n (14), and grafana's 7 groups
+list_packs()                        →  grafana (50), n8n (14), penpot (12), and grafana's 7 groups
 list_skills(pack="grafana-lgtm")    →  6 skills, ~945 tokens
 read_skill(skill="loki")            →  the instructions to follow
 read_skill(skill="loki", file="_manifest")  →  what else it ships
@@ -31,7 +31,7 @@ read_skill(skill="loki", file="_manifest")  →  what else it ships
 
 ## Filtering to one pack
 
-`pack` accepts either a source (`n8n`, `grafana`) or one of its groups
+`pack` accepts either a source (`n8n`, `grafana`, `penpot`) or one of its groups
 (`grafana-core`, `grafana-lgtm`). That is the soft filter, chosen per call.
 
 For a **hard** scope — an n8n agent that can never see Grafana skills — set

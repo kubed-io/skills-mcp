@@ -24,3 +24,9 @@ name = "grafana"
 repo = "https://github.com/grafana/skills.git"
 ref = "51d33e71e191b409bbd25fc7be2684c610d18166"
 path = "skills"
+
+[[source]]
+name = "penpot"
+repo = "https://github.com/penpot/penpot-ai-kit.git"
+ref = "c63d8e3717323fad859e794848e5a602b155a7ec"
+path = "skills"
