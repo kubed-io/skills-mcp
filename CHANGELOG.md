@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `X-Skill-Pack` request header pins a client to one pack — a ceiling the model cannot widen past, so one deployment can serve several single-pack agents.
 - `read_pack_file` tool plus an `extras` key in `skills.toml`, serving files a pack ships outside its skills — penpot references `shared/*` from 190 places and those links were dead.
+- PRs are gated on the Test and PR Tasks checks; the image no longer builds on a pull request, only on merge to main.
 - An unknown `pack` no longer names the other packs in its error message, which leaked them to a pinned client.
 - Split the single `server.py` into `skills.py` (catalogue), `tools.py`, `routes.py`, `server.py` (wiring) and `main.py` (entry), separating MCP wiring from tool implementations.
 - `penpot` skill pack from `penpot/penpot-ai-kit` (12 skills, 108 supporting files) — pairs with the Penpot agent.

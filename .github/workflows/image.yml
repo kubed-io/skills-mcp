@@ -1,11 +1,17 @@
 name: 📸 Image Builder
 
 # Context-driven image build:
-#   pull_request        build only, no push          → "does it still build?"
 #   push: main          push :main + :latest          → test :latest in-cluster
 #   workflow_dispatch   manual build (push toggle)
 #   workflow_call       called by publish.yml with a version tag — checks out
 #                       that tag and pushes :vX.Y.Z (stable, pin this to deploy)
+#
+# Deliberately NOT run on pull_request. A PR is gated on the test workflow, which
+# installs the package and runs lint + unit tests; a ~7-minute two-arch image
+# build on every push to a branch buys little on top of that. The trade-off is
+# real and accepted: a change that breaks only the Dockerfile or the skill fetch
+# is caught on merge to main, not in review. Build it by hand first
+# (`docker compose build`, or dispatch this workflow) when touching either.
 #
 # There is deliberately NO `push: tags` trigger. Releases don't rely on a tag
 # push triggering a build; publish.yml calls this workflow (workflow_call) so the
@@ -16,16 +22,6 @@ name: 📸 Image Builder
 # writes a semver, so main always carries a stable, deployable version.
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-    - Dockerfile
-    - docker-compose.yaml
-    - pyproject.toml
-    - .github/workflows/image.yml
-    - kubed/**
-    - skills.toml
-    - scripts/fetch_skills.py
   push:
     branches: [main]
     paths:

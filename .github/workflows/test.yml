@@ -4,13 +4,12 @@ name: 🧪 Test
 # touch the submodules, so this stays fast and independent of upstream skill repos.
 
 on:
+  # No `paths` filter on pull_request, deliberately. This job is a REQUIRED
+  # status check, and a path-filtered required check never reports on a PR that
+  # misses the filter — GitHub then waits for it forever and the PR can never
+  # merge. The push filter below is fine: nothing gates on it.
   pull_request:
     branches: [main]
-    paths:
-    - kubed/**
-    - tests/**
-    - pyproject.toml
-    - .github/workflows/test.yml
   push:
     branches: [main]
     paths:
